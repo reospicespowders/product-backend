@@ -13,8 +13,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies with strict settings
-RUN npm ci --only=production --no-audit --no-fund --prefer-offline
+# Install ALL dependencies (including dev dependencies for build)
+RUN npm ci --no-audit --no-fund --prefer-offline
 
 # Rebuild the source code only when needed
 FROM base AS builder
