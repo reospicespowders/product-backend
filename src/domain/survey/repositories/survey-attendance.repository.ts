@@ -36,7 +36,7 @@ export class SurveyAttendanceRepositoryImpl implements SurveyAttendanceRepositor
     }
 
 
-    async getByEmailAndId(id: string, email: string): Promise<SurveyAttendance> {
+    async getByEmailAndId(id: string, email: string): Promise<SurveyAttendance | undefined> {
         let pipe = [
             {
                 '$match': {
@@ -63,7 +63,7 @@ export class SurveyAttendanceRepositoryImpl implements SurveyAttendanceRepositor
             }
         ];
         let res = await this.surveyAttendanceModal.aggregate(pipe);
-        return res.length > 0 ? res[0] : [];
+        return res.length > 0 ? res[0] : undefined;
     }
 
 

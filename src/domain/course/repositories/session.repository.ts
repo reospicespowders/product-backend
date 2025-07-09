@@ -28,7 +28,7 @@ export class SessionRepositoryImpl implements SessionRepository {
   }
 
 
-  public async updateSessionOrder(data: [{ _id: string, order: number }]) {
+  public async updateSessionOrder(data: [{ _id: string, order: number }]): Promise<any> {
     const bulkUpdateOps: any = data.map(session => ({
       updateOne: {
         filter: { _id: session._id },

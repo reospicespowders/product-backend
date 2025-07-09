@@ -8,7 +8,7 @@ export class AssessmentAttemptRepositoryImpl implements AssessmentAttemptReposit
 
     constructor(@InjectModel('assessment-attempts') private readonly attemptModel: Model<AssessmentAttempt>) { }
 
-    async getById(id: string, email: string): Promise<AssessmentAttempt> { 
+    async getById(id: string, email: string): Promise<AssessmentAttempt | undefined> { 
         let pipe = [
             {
                 '$match': {
@@ -35,7 +35,7 @@ export class AssessmentAttemptRepositoryImpl implements AssessmentAttemptReposit
             }
         ];
         let res = await this.attemptModel.aggregate(pipe);
-        return res.length > 0 ? res[0] : [];
+        return res.length > 0 ? res[0] : undefined;
     }
 
     async getMultipleById(id: string, email: string): Promise<any> { 
