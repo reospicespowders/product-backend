@@ -14,6 +14,10 @@ import e from "express";
 import { Model } from "mongoose";
 import { AuthRepository } from "src/domain/user-auth/interfaces/auth-repository.interface";
 import { Course } from "src/domain/course/dto/course.dto";
+import { Resend } from 'resend';
+import * as Handlebars from 'handlebars';
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 /**
@@ -22,11 +26,16 @@ import { Course } from "src/domain/course/dto/course.dto";
  */
 @Injectable()
 export class MailService {
+    private resend: Resend;
+    private templateCache: Map<string, HandlebarsTemplateDelegate> = new Map();
+
     constructor(
         @Inject('MailLogRepository') private mailLogRepository: MailLogRepository,
         private qrCodeService: QrCodeService,
         @Inject('AuthRepository') private userRepository: AuthRepository,
-    ) { }
+    ) { 
+        this.resend = new Resend(process.env.RESEND_API_KEY);
+    }
 
 
     sendQRMail(surveyId: string, email: string, isExternal: boolean, byUrl: boolean, subject?: string) {
@@ -175,38 +184,100 @@ export class MailService {
      * @return {*}  {Promise<SentMessageInfo>}
      * @memberof MailService
      */
-    sendMail({ email, context, subject, template }: any): void {
-        try {
-            // let body = {
-            //     email,
-            //     context,
-            //     subject,
-            //     template
-            // };
+    // sendMail({ email, context, subject, template }: any): void {
+    //     try {
+    //         let body = {
+    //             email,
+    //             context,
+    //             subject,
+    //             template
+    //         };
 
-            // axios.post(process.env.MAIL_SERVER_URL, body, {
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //     }
-            // })
-            //     .then(response => {
-            //         // console.log("Mail sent to " + email);
-            //         let mailLog: MailLog = {
-            //             status: 'SUCCESS',
-            //             meta: { context, details: response.data }
-            //         };
-            //         this.mailLogRepository.create(mailLog);
-            //     })
-            //     .catch(error => {
-            //         // console.log(error);
-            //         let mailLog: MailLog = {
-            //             status: 'ERROR',
-            //             meta: { context, details: error }
-            //         };
-            //         this.mailLogRepository.create(mailLog);
-            //     });
+    //         axios.post(process.env.MAIL_SERVER_URL, body, {
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //             }
+    //         })
+    //             .then(response => {
+    //                 // console.log("Mail sent to " + email);
+    //                 let mailLog: MailLog = {
+    //                     status: 'SUCCESS',
+    //                     meta: { context, details: response.data }
+    //                 };
+    //                 this.mailLogRepository.create(mailLog);
+    //             })
+    //             .catch(error => {
+    //                 // console.log(error);
+    //                 let mailLog: MailLog = {
+    //                     status: 'ERROR',
+    //                     meta: { context, details: error }
+    //                 };
+    //                 this.mailLogRepository.create(mailLog);
+    //             });
+
+    //     } catch (e) {
+    //         let mailLog: MailLog = {
+    //             status: 'ERROR',
+    //             error: e,
+    //             meta: {
+    //                 email, context, subject, template
+    //             }
+    //         }
+    //         // console.log(e);
+    //         this.mailLogRepository.create(mailLog);
+    //     }
+    // }
+
+    /**
+     * Send email using Resend.com with Handlebars templates
+     * 
+     * @param {string} email - Recipient email address
+     * @param {any} context - Email template context data
+     * @param {string} subject - Email subject
+     * @param {string} template - Template name (will load from templets folder)
+     * @return {Promise<void>}
+     * @memberof MailService
+     */
+    async sendMail({ email, context, subject, template }: any): Promise<void> {
+        try {
+            // Generate HTML from Handlebars template
+            const htmlContent = await this.generateEmailHTML(template, context);
+            
+            // Get from email with fallback
+            const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+            
+            // Send email using Resend
+            const { data, error } = await this.resend.emails.send({
+                from: fromEmail,
+                to: [email],
+                subject: subject,
+                html: htmlContent,
+            });
+
+            if (error) {
+                console.error('Resend error:', error);
+                
+                // Handle specific domain verification error
+                if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 403 && error.message && error.message.includes('domain is not verified')) {
+                    console.error('Domain verification error. Please verify your domain in Resend dashboard or use onboarding@resend.dev for testing.');
+                }
+                
+                let mailLog: MailLog = {
+                    status: 'ERROR',
+                    meta: { context, details: error }
+                };
+                this.mailLogRepository.create(mailLog);
+            } else {
+                console.log('Email sent successfully to:', email);
+                let mailLog: MailLog = {
+                    status: 'SUCCESS',
+                    meta: { context, details: data }
+                };
+                this.mailLogRepository.create(mailLog);
+            }
 
         } catch (e) {
+            console.error('Mail service error:', e);
             let mailLog: MailLog = {
                 status: 'ERROR',
                 error: e,
@@ -214,8 +285,80 @@ export class MailService {
                     email, context, subject, template
                 }
             }
-            // console.log(e);
             this.mailLogRepository.create(mailLog);
+        }
+    }
+
+    /**
+     * Generate HTML content from Handlebars template
+     * 
+     * @param {string} templateName - Template name (without .hbs extension)
+     * @param {any} context - Template context data
+     * @return {Promise<string>} HTML content
+     * @private
+     * @memberof MailService
+     */
+    private async generateEmailHTML(templateName: string, context: any): Promise<string> {
+        try {
+            // Check if template is cached
+            if (!this.templateCache.has(templateName)) {
+                // Load template from file
+                const templatePath = path.join(process.cwd(), 'templets', `${templateName}.hbs`);
+                
+                if (!fs.existsSync(templatePath)) {
+                    throw new Error(`Template not found: ${templateName}.hbs`);
+                }
+                
+                const templateContent = fs.readFileSync(templatePath, 'utf8');
+                const compiledTemplate = Handlebars.compile(templateContent);
+                
+                // Cache the compiled template
+                this.templateCache.set(templateName, compiledTemplate);
+            }
+            
+            // Get cached template and render with context
+            const template = this.templateCache.get(templateName);
+            if (!template) {
+                throw new Error(`Template not found in cache: ${templateName}`);
+            }
+            
+            return template(context);
+            
+        } catch (error) {
+            console.error(`Error generating email HTML for template ${templateName}:`, error);
+            
+            // Fallback to a simple HTML template if template loading fails
+            return `
+                <!DOCTYPE html>
+                <html dir="rtl" lang="ar">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Email</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
+                        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                        .header { text-align: center; margin-bottom: 30px; }
+                        .content { margin-bottom: 30px; }
+                        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>Email Template Error</h1>
+                        </div>
+                        <div class="content">
+                            <p>Template "${templateName}" could not be loaded.</p>
+                            <p>Context: ${JSON.stringify(context)}</p>
+                        </div>
+                        <div class="footer">
+                            <p>This is an automated email, please do not reply.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
         }
     }
 }

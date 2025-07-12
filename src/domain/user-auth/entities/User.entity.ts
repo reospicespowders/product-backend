@@ -62,7 +62,7 @@ export const UserSchema = new mongose.Schema<User>({
     role: {
         type: Schema.Types.ObjectId,
         ref: "Role",
-        default: '64c434e4b3af906a319576d3'
+        // default: '64c434e4b3af906a319576d3'
     },
     browsers: {
         code: {

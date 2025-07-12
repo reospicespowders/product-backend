@@ -591,6 +591,9 @@ export class UserAuthService {
         })
     }
 
+
+
+
     public async signUp(user: User): Promise<GenericResponse<User>> {
         //Destructuring email form user Object
         user.email = user.email.toLocaleLowerCase()
@@ -912,18 +915,29 @@ export class UserAuthService {
         let ous = uid.ou.map(ou => ou._id);
 
         let theme = await this.ouRepository.getUserTheme(ous);
-        let themeDefault = await this.ouRepository.getDefaultTheme()
-         
-        if(!theme || theme?.length <= 0 ) {
-            theme = themeDefault.theme
+        let themeDefault = await this.ouRepository.getDefaultTheme();
+        if (!theme || theme?.length <= 0) {
+            if (themeDefault && themeDefault.theme) {
+                theme = themeDefault.theme;
+            } else {
+                // Fallback to an empty object or a sensible default
+                console.warn('No default theme found for user:', email);
+                theme = {};
+            }
         } else {
-            theme = theme[0].theme.values
+            theme = theme[0].theme.values;
         }
 
 
         //check is it a test creator
         let isTester= await this.permissionRequestRepository.checkIsTester(email);
        
+        // Ensure themeDefault is always an object with a theme property
+        if (!themeDefault) {
+            themeDefault = { theme: {} };
+        } else if (!themeDefault.theme) {
+            themeDefault.theme = {};
+        }
         //constructing login response
         const response: GenericResponse<any> = {
             success: true,
@@ -960,6 +974,17 @@ export class UserAuthService {
 
         return response;
 
+    }
+ /**
+     *
+     *  Login User
+     * @param {Login} login
+     * @param {*} userAgent
+     * @return {*}  {Promise<any>}
+     * @memberof UserAuthService
+     */
+    public async loginReoSpices(login: Login, userAgent: any): Promise<GenericResponse<any>> {
+        return this.login(login, userAgent);
     }
 
 
@@ -1266,4 +1291,94 @@ export class UserAuthService {
             data: ''
         };
     }
+
+
+    
+
+    public async signUpReoSpices(user: User): Promise<GenericResponse<User>> {
+        //Destructuring email form user Object
+        user.email = user.email.toLocaleLowerCase()
+
+        const { email } = user;
+        // check user exist
+        const userExist = await this.userRepository.isUserExist(email);
+        if (userExist) {
+            throw new BadRequestException('User Already Exist');
+        }
+
+        
+
+        //Saving Object as Data
+        const data: User = user;
+
+        // Hash the password before saving
+        data.password = await this.userRepository.hashPassword(user.password);
+
+        data.ou = [];
+
+        //Saving reset Password Initials
+        data.resetPassword = {
+            status: false,
+            loginAttempts: 0,
+            lastPasswordReset: null
+        }
+
+        data.active = {
+            status: false,
+            reason: "NEW ACCOUNT",
+            activationDate: new Date().toLocaleString(),
+            activationCode: ''
+        }
+
+        //Saving Browser Initials
+        data.browsers = {
+            code: null,
+            list: []
+        }
+        //creating user record
+        let userData = await this.createUser(data)
+
+
+        this.assigNewBranchCourses(userData.data._id, email)
+
+
+        try {
+            let messages = await this.jsonService.parseJson(path.join(basePath, 'domain/json/email-messages/email-messages.json'));
+            email
+            this.mailService.sendMail({
+                subject: messages.createUser.subject,
+                template: "welcome",
+                context: {
+                    email: email,
+                    // password: password,
+                    text: messages.createUser.text,
+                    heading: messages.createUser.heading,
+                },
+                email: email
+            });
+        } catch (e) {
+            // console.log('ERROR', e);
+        }
+
+        const notification: Notification = {
+            type: NotificationType.USER_REGISTER,
+            receiver: [],
+            sender: userData.data._id,
+            seenBy: [],
+            category: NotificationCategory.USER_EVENTS,
+
+        }
+        this.notificationService.create(notification);
+
+        // Generic Response
+        const response: GenericResponse<User> = {
+            success: true,
+            message: "User Registered Successfully we will send you a mail after the approval",
+            data: data,
+        };
+
+        return response
+    }
+
+
 }

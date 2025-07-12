@@ -26,6 +26,22 @@ export class UserAuthController {
     constructor(private userService: UserAuthService) { }
 
 
+    
+     /**
+     *
+     * Signup User
+     * @param {User} user
+     * @return {*}  {Promise<any>}
+     * @memberof UserAuthController
+     */
+     @Post('/register-reo-spices')
+     @OpenRoute()
+     @UsePipes(new JoiValidationPipe(userSignup)) //validating the object
+     registerReoSpices(@Body() user: User): Promise<GenericResponse<any>> {
+         return this.userService.signUpReoSpices(user)
+     }
+    
+    
     /**
      *
      * Signup User
@@ -84,6 +100,21 @@ export class UserAuthController {
     @UsePipes(new JoiValidationPipe(validateLoginSchema)) //validating the object
     login(@Body() login: Login, @Req() request: Request): Promise<GenericResponse<any>> {
         return this.userService.login(login, request.headers['user-agent'])
+    }
+
+    /**
+     *
+     * Login User (REO Spices)
+     * @param {Login} login
+     * @param {Request} request
+     * @return {*}  {Promise<any>}
+     * @memberof UserAuthController
+     */
+    @Post('/login-reo-spices')
+    @OpenRoute()
+    @UsePipes(new JoiValidationPipe(validateLoginSchema))
+    loginReoSpices(@Body() login: Login, @Req() request: Request): Promise<GenericResponse<any>> {
+        return this.userService.loginReoSpices(login, request.headers['user-agent'])
     }
 
     /**

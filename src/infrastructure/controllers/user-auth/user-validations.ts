@@ -1,10 +1,29 @@
 import * as Joi from 'joi'
 import { Comment } from 'src/domain/comments/dto/comment.dto';
 
+
+//User signup validator
+export const userSignupReoSpices = Joi.object({
+    name: Joi.object().required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
+    phone: Joi.string(),
+    gender: Joi.string(),
+    city: Joi.string(),
+    national_id:Joi.string(),
+    active: Joi.object(),
+    location : Joi.string(),
+    ou : Joi.array().items(Joi.string()),
+    externalUser : Joi.object(),
+    permissionRequests : Joi.array(),
+  });
+
+
 //User signup validator
 export const userSignup = Joi.object({
-    name: Joi.object(),
+    name: Joi.object().required(),
     email: Joi.string().email().required(),
+    password: Joi.string().required(),
     phone: Joi.string(),
     gender: Joi.string().required(),
     city: Joi.string(),

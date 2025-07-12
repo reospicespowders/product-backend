@@ -15,7 +15,7 @@ async function bootstrap() {
   //// console.log(process.env.CORS_POLICY)
 
   const corsOptions: CorsOptions = {
-    origin: ['https://kgate.bc.gov.sa', 'http://localhost:4200','http://localhost:64747'], // Fixed trailing slash
+    origin: ['https://kgate.bc.gov.sa', 'http://localhost:4200','http://localhost:64747','http://localhost:3001'], // Fixed trailing slash
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Allowed methods
     allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
     credentials: true, // Enable cookies and credentials

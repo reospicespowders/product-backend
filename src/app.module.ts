@@ -787,10 +787,11 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
 
     consumer.apply(LogMiddleware)
-      .exclude("user/login")
+      .exclude("user/login", "user/register")
       .forRoutes('*');
 
     consumer.apply(AuditMiddleware)
+      .exclude("user/login", "user/register")
       .forRoutes('*')
   }
 }
